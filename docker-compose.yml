@@ -28,8 +28,7 @@ services:
     #     limits:
     #       cpus: '0.5'
     #       memory: 256M
-
 # Only declare the volume if not using a host directory
-volumes:
-  onif-watcher_recordings:
-    external: true
+# volumes:
+#   onif-watcher_recordings:
+#     external: true
