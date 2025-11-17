@@ -177,11 +177,31 @@ class FilePurger:
         # Find and delete old files
         old_files = self.find_old_files()
         deleted_files = []
+        deleted_files_info = []  # Store file info before deletion
         failed_files = []
 
         for file_path in old_files:
+            # Collect file info BEFORE deletion
+            try:
+                file_info = {
+                    'path': file_path,
+                    'relative_path': self.format_file_path(file_path),
+                    'size': self.format_file_size(file_path),
+                    'age_days': self.get_file_age_days(file_path)
+                }
+            except Exception as e:
+                logger.warning(f"Could not get info for {file_path}: {e}")
+                file_info = {
+                    'path': file_path,
+                    'relative_path': self.format_file_path(file_path),
+                    'size': '?',
+                    'age_days': 0
+                }
+
+            # Now delete the file
             if self.delete_file(file_path):
                 deleted_files.append(file_path)
+                deleted_files_info.append(file_info)
             else:
                 failed_files.append(file_path)
 
@@ -191,6 +211,7 @@ class FilePurger:
         # Prepare summary
         results = {
             'deleted_files': deleted_files,
+            'deleted_files_info': deleted_files_info,  # Include pre-deletion info
             'failed_files': failed_files,
             'removed_directories': removed_dirs,
             'timestamp': datetime.now()
@@ -204,15 +225,17 @@ class FilePurger:
         logger.info(f"  Directories removed: {len(removed_dirs)}")
         logger.info("=" * 60)
 
-        # Send Discord notification if there were changes
+        # Send Discord notification
         if len(deleted_files) > 0 or len(removed_dirs) > 0:
             self._send_purge_notification(results)
+        else:
+            self._send_no_action_notification()
 
         return results
 
     def _send_purge_notification(self, results: Dict):
         """Send detailed Discord notification about purge results"""
-        deleted_files = results['deleted_files']
+        deleted_files_info = results.get('deleted_files_info', [])
         removed_dirs = results['removed_directories']
         failed_files = results['failed_files']
 
@@ -220,7 +243,7 @@ class FilePurger:
         message_parts = []
 
         # Header with summary
-        header = f"🗑️ **Gelöschte Dateien:** {len(deleted_files)}"
+        header = f"🗑️ **Gelöschte Dateien:** {len(deleted_files_info)}"
         if len(removed_dirs) > 0:
             header += f"\n📂 **Leere Verzeichnisse entfernt:** {len(removed_dirs)}"
         if len(failed_files) > 0:
@@ -229,19 +252,19 @@ class FilePurger:
         message_parts.append(header)
 
         # List deleted files (limit to avoid Discord message size limits)
-        if deleted_files:
+        if deleted_files_info:
             message_parts.append("\n**Gelöschte Dateien:**")
             max_files_to_show = 15
 
-            for i, file_path in enumerate(deleted_files[:max_files_to_show]):
-                rel_path = self.format_file_path(file_path)
-                size = self.format_file_size(file_path)
-                age = self.get_file_age_days(file_path)
+            for i, file_info in enumerate(deleted_files_info[:max_files_to_show]):
+                rel_path = file_info['relative_path']
+                size = file_info['size']
+                age = file_info['age_days']
                 message_parts.append(
                     f"• `{rel_path}` ({size}, {age:.0f} Tage alt)")
 
-            if len(deleted_files) > max_files_to_show:
-                remaining = len(deleted_files) - max_files_to_show
+            if len(deleted_files_info) > max_files_to_show:
+                remaining = len(deleted_files_info) - max_files_to_show
                 message_parts.append(f"... und {remaining} weitere Datei(en)")
 
         # List removed directories
@@ -277,6 +300,23 @@ class FilePurger:
         # Send notification
         title = "File Purge Report" if not self.dry_run else "File Purge Report (DRY RUN)"
         self.discord_notifier.send_notification(title, message, color)
+
+    def _send_no_action_notification(self):
+        """Send notification when no files were deleted"""
+        next_check = datetime.now() + timedelta(seconds=self.check_interval_seconds)
+        next_check_str = next_check.strftime("%d.%m.%Y %H:%M:%S")
+
+        message = (
+            f"✅ **Keine Dateien zum Löschen gefunden**\n\n"
+            f"🔍 Alle Dateien sind neuer als {self.max_age_days} Tage\n"
+            f"⏰ Nächster Check: {next_check_str}"
+        )
+
+        self.discord_notifier.send_notification(
+            "File Purge - Keine Aktion erforderlich",
+            message,
+            0x808080  # Gray color
+        )
 
     def run_continuous(self):
         """Run purge cycles continuously based on check interval"""
