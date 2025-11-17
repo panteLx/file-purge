@@ -1,0 +1,35 @@
+services:
+  file-purge:
+    build: .
+    container_name: file-purge
+    restart: unless-stopped
+    volumes:
+      # Mount your target directory here
+      - ${PURGE_VOLUME}:/data
+    environment:
+      # Target directory inside container (mounted volume)
+      - PURGE_TARGET_DIR=/data
+
+      # Maximum file age in days before deletion
+      - PURGE_MAX_AGE_DAYS=${PURGE_MAX_AGE_DAYS:-30}
+
+      # Check interval in seconds (default: 3600 = 1 hour)
+      - PURGE_CHECK_INTERVAL=${PURGE_CHECK_INTERVAL:-3600}
+
+      # Discord webhook URL for notifications
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+
+      # Dry run mode (true/false) - if true, files won't actually be deleted
+      - PURGE_DRY_RUN=${PURGE_DRY_RUN:-false}
+
+    # Optional: Limit resources
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+# Only declare the volume if not using a host directory
+volumes:
+  onif-watcher_recordings:
+    external: true
