@@ -33,5 +33,5 @@ services:
     #       memory: 256M
 # Only declare the volume if not using a host directory
 # volumes:
-#   onif-watcher_recordings:
+#   recordings:
 #     external: true
