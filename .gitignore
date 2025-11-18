@@ -19,6 +19,7 @@ ENV/
 
 # Docker
 .dockerignore
+docker-compose.yml
 
 # OS
 .DS_Store
